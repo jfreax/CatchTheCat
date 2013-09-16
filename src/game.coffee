@@ -26,13 +26,22 @@ class Game
     @gamefield.addEventListener('click', (e) =>
           if @isPaused
             return
-          y = Math.round(e.offsetY / (@radius * 2))
+          
+          if e.offsetX == undefined # for Firefox
+            xpos = e.pageX-@gamefield.offsetLeft;
+            ypos = e.pageY-@gamefield.offsetTop;
+          else
+            xpos = e.offsetX
+            ypos = e.offsetY
+  
+          y = Math.round(ypos / (@radius * 2))
           
           xoffset = @radius
           if y % 2
             xoffset = 2*@radius
             
-          x = Math.round (e.offsetX + xoffset) / (@radius*2) - 1
+          x = Math.round (xpos + xoffset) / (@radius*2) - 1
+          console.log(x + "x" + y)
           
           if !@fields[y*11+x]
             @makeWall x,y
