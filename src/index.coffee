@@ -1,5 +1,5 @@
 $ ->
-  game = new Game()
+  game = new Game('cat')
 
 start = () -> 
   pop = new Population(3)

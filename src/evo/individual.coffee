@@ -3,14 +3,8 @@ class Individual
   constructor: (@chromosom) ->
     
   fitness: () ->
-    cat = {}
-    for pos,type of @chromosom
-      if type == 'cat'
-        cat.x = Math.floor(pos % 11)
-        cat.y = Math.floor(pos / 11)
-        cat.distance = 0
-        break
-    
+    cat = @getCat()
+
     visited = [cat.y*11+cat.x]
     return @bfs([cat], visited)
     
@@ -29,6 +23,21 @@ class Individual
       return 99
     return @bfs(next, visited)
 
+  getCat: () ->
+    cat = {}
+    for pos,type of @chromosom
+      if type == 'cat'
+        cat.x = Math.floor((pos-1) % 11) + 1
+        cat.y = Math.floor((pos-1) / 11)
+        cat.distance = 0
+        break
+        
+    return cat
+    
+  moveCat: (x, y) ->
+    cat = @getCat()
+    @chromosom[cat.y*11+cat.x] = undefined
+    @chromosom[y*11+x] = 'cat'
     
   neighbours: (l) ->
     neighs = []
@@ -56,5 +65,18 @@ class Individual
         
     return neighs
     
+  nextBestMove: () ->
+    neighbours = @neighbours(@getCat())
+    best_distance = 99
+    best_ind = neighbours[0]
+    for n in neighbours
+      n.distance = 0
+      distance = @bfs([n], [n.x+n.y*11])
+      if distance < best_distance
+        best_distance = distance
+        best_ind = n
+        
+    return best_ind
+  
   mutate: () ->
     return 0

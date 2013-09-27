@@ -4,48 +4,82 @@
 
   Population = (function() {
 
-    Population.prototype.faceID = 0;
-
-    Population.prototype.best = -1;
-
-    Population.prototype.individuals = [];
-
-    function Population(count) {
-      this.count = count;
+    function Population(world) {
+      this.world = world;
+      this.best = -1;
+      this.best_fitness = -1;
+      this.individuals = [];
       this.populate();
     }
 
     Population.prototype.populate = function() {
-      var num, _ref;
-      for (num = 1, _ref = this.count; 1 <= _ref ? num <= _ref : num >= _ref; 1 <= _ref ? num++ : num--) {
-        this.individuals.push(new Individual());
+      var i, ind, newWorld, num, x, y, _i, _len, _ref, _results;
+      for (x = 1; x <= 11; x++) {
+        for (y = 1; y <= 11; y++) {
+          num = x + y * 11;
+          if (!this.world[num]) {
+            newWorld = this.clone(this.world);
+            newWorld[num] = 'wall';
+            ind = new Individual(newWorld);
+            ind.parent = ind;
+            this.individuals.push(ind);
+          }
+        }
       }
-    };
-
-    Population.prototype.evolve = function(self) {
-      var i, _i, _len, _ref, _results;
-      _ref = self.individuals;
+      _ref = this.individuals;
       _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         i = _ref[_i];
-        _results.push(i.mutate());
+        _results.push((function() {
+          var _results2;
+          _results2 = [];
+          for (x = 1; x <= 11; x++) {
+            _results2.push((function() {
+              var _results3;
+              _results3 = [];
+              for (y = 1; y <= 11; y++) {
+                num = x + y * 11;
+                ind = new Individual(this.clone(i.chromosom));
+                if (!i.chromosom[num]) {
+                  ind.chromosom[num] = 'wall';
+                  ind.parent = i;
+                  _results3.push(this.individuals.push(ind));
+                } else {
+                  _results3.push(void 0);
+                }
+              }
+              return _results3;
+            }).call(this));
+          }
+          return _results2;
+        }).call(this));
       }
       return _results;
     };
 
-    Population.prototype.run = function(self) {
-      var fitting, i, _i, _len, _ref;
-      _ref = self.individuals;
+    Population.prototype.run = function() {
+      var fitness, i, _i, _len, _ref;
+      _ref = this.individuals;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         i = _ref[_i];
-        fitting = i.fitting();
-        if (fitting < self.best || self.best === 99) {
-          self.best = fitting;
-          console.log(fitting);
+        fitness = i.fitness();
+        if (fitness > this.best_fitness || (fitness === this.best_fitness && i.parent === i)) {
+          this.best_fitness = fitness;
+          console.log("Best: " + this.best_fitness);
+          this.best = i;
         }
       }
-      self.evolve(self);
-      return setTimeout(self.run, 10, self);
+      return this.best.parent;
+    };
+
+    Population.prototype.clone = function(obj) {
+      var key, temp;
+      if (obj === null || typeof obj !== "object") return obj;
+      temp = new obj.constructor();
+      for (key in obj) {
+        temp[key] = this.clone(obj[key]);
+      }
+      return temp;
     };
 
     return Population;
@@ -59,18 +93,8 @@
     }
 
     Individual.prototype.fitness = function() {
-      var cat, pos, type, visited, _ref;
-      cat = {};
-      _ref = this.chromosom;
-      for (pos in _ref) {
-        type = _ref[pos];
-        if (type === 'cat') {
-          cat.x = Math.floor(pos % 11);
-          cat.y = Math.floor(pos / 11);
-          cat.distance = 0;
-          break;
-        }
-      }
+      var cat, visited;
+      cat = this.getCat();
       visited = [cat.y * 11 + cat.x];
       return this.bfs([cat], visited);
     };
@@ -94,6 +118,29 @@
       }
       if (next.length === 0) return 99;
       return this.bfs(next, visited);
+    };
+
+    Individual.prototype.getCat = function() {
+      var cat, pos, type, _ref;
+      cat = {};
+      _ref = this.chromosom;
+      for (pos in _ref) {
+        type = _ref[pos];
+        if (type === 'cat') {
+          cat.x = Math.floor((pos - 1) % 11) + 1;
+          cat.y = Math.floor((pos - 1) / 11);
+          cat.distance = 0;
+          break;
+        }
+      }
+      return cat;
+    };
+
+    Individual.prototype.moveCat = function(x, y) {
+      var cat;
+      cat = this.getCat();
+      this.chromosom[cat.y * 11 + cat.x] = void 0;
+      return this.chromosom[y * 11 + x] = 'cat';
     };
 
     Individual.prototype.neighbours = function(l) {
@@ -155,6 +202,23 @@
       return neighs;
     };
 
+    Individual.prototype.nextBestMove = function() {
+      var best_distance, best_ind, distance, n, neighbours, _i, _len;
+      neighbours = this.neighbours(this.getCat());
+      best_distance = 99;
+      best_ind = neighbours[0];
+      for (_i = 0, _len = neighbours.length; _i < _len; _i++) {
+        n = neighbours[_i];
+        n.distance = 0;
+        distance = this.bfs([n], [n.x + n.y * 11]);
+        if (distance < best_distance) {
+          best_distance = distance;
+          best_ind = n;
+        }
+      }
+      return best_ind;
+    };
+
     Individual.prototype.mutate = function() {
       return 0;
     };
@@ -165,7 +229,7 @@
 
   $(function() {
     var game;
-    return game = new Game();
+    return game = new Game('cat');
   });
 
   start = function() {
@@ -184,7 +248,8 @@
 
     Game.prototype.floorColor = "rgb(200,200,200)";
 
-    function Game() {
+    function Game(type) {
+      this.type = type;
       this.fields = {};
       this.cat = {};
       this.radius = 24;
@@ -206,17 +271,42 @@
       this.setCat(6, 5);
       this.randomWalls(Math.random() * 5 + 3);
       this.gamefield.addEventListener('click', function(e) {
-        var ind, xoffset;
+        var ind, n, nextPos, xoffset, xpos, ypos, _i, _len, _ref;
         if (_this.isPaused) return;
-        y = Math.round(e.offsetY / (_this.radius * 2));
+        if (e.offsetX === void 0) {
+          xpos = e.pageX - _this.gamefield.offsetLeft;
+          ypos = e.pageY - _this.gamefield.offsetTop;
+        } else {
+          xpos = e.offsetX;
+          ypos = e.offsetY;
+        }
+        y = Math.round(ypos / (_this.radius * 2));
         xoffset = _this.radius;
         if (y % 2) xoffset = 2 * _this.radius;
-        x = Math.round((e.offsetX + xoffset) / (_this.radius * 2) - 1);
+        x = Math.round((xpos + xoffset) / (_this.radius * 2) - 1);
+        nextPos = {
+          x: x,
+          y: y
+        };
         if (!_this.fields[y * 11 + x]) {
-          _this.makeWall(x, y);
           ind = new Individual(_this.fields);
-          _this.makeCatMove();
-          if (ind.fitness() === 99) return _this.catLost();
+          if (_this.type === 'catcher') {
+            _this.makeWall(x, y);
+            _this.makeCatMove();
+          } else {
+            _ref = ind.neighbours(_this.cat);
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              n = _ref[_i];
+              if (n.x === nextPos.x && n.y === nextPos.y) {
+                _this.setCat(nextPos.x, nextPos.y);
+                _this.makeWallAi();
+              }
+            }
+          }
+          console.log(ind.fitness());
+          if (ind.fitness() === 99) _this.catLost();
+          _this.isLost();
+          return _this.isPaused = false;
         }
       }, false);
       return this.isPaused = false;
@@ -267,38 +357,62 @@
     };
 
     Game.prototype.makeCatMove = function() {
-      var best_distance, best_ind, distance, i, n, neighbours, _i, _len;
+      var best, i;
       i = new Individual(this.fields);
-      neighbours = i.neighbours(this.cat);
-      best_distance = 99;
-      best_ind = neighbours[0];
-      for (_i = 0, _len = neighbours.length; _i < _len; _i++) {
-        n = neighbours[_i];
-        n.distance = 0;
-        distance = i.bfs([n], [n.x + n.y * 11]);
-        if (distance < best_distance) {
-          best_distance = distance;
-          best_ind = n;
+      best = i.nextBestMove();
+      this.setCat(best.x, best.y);
+      return this.isPaused = false;
+    };
+
+    Game.prototype.makeWallAi = function() {
+      var best, pop, pos, type, _ref;
+      pop = new Population(this.fields);
+      best = pop.run();
+      _ref = best.chromosom;
+      for (pos in _ref) {
+        type = _ref[pos];
+        if (!this.fields[pos]) {
+          if (best.chromosom[pos] === 'wall') {
+            this.makeWall(Math.floor((pos - 1) % 11) + 1, Math.floor((pos - 1) / 11));
+          }
         }
       }
-      this.setCat(best_ind.x, best_ind.y);
-      this.isLost();
       return this.isPaused = false;
     };
 
     Game.prototype.isLost = function() {
       if (this.cat.x <= 0 || this.cat.x > 11 || this.cat.y <= 0 || this.cat.y > 11) {
-        this.ctx.font = "bold 120px sans-serif";
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText("LOST", this.gamefield.width / 2, this.gamefield.height / 2);
-        return this.isPaused = true;
+        return this.catWon();
       }
     };
 
+    Game.prototype.catWon = function() {
+      if (this.type === 'catcher') {
+        this.ctx.fillStyle = "rgb(200,100,100)";
+        this.ctx.font = "bold 120px sans-serif";
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText("LOST", this.gamefield.width / 2, this.gamefield.height / 2);
+      } else {
+        this.ctx.fillStyle = "rgb(100,200,100)";
+        this.ctx.font = "bold 120px sans-serif";
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText("WON", this.gamefield.width / 2, this.gamefield.height / 2);
+      }
+      return this.isPaused = true;
+    };
+
     Game.prototype.catLost = function() {
-      this.ctx.font = "bold 110px sans-serif";
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText("CAT LOST", this.gamefield.width / 2, this.gamefield.height / 2);
+      if (this.type === 'cat') {
+        this.ctx.fillStyle = "rgb(200,100,100)";
+        this.ctx.font = "bold 110px sans-serif";
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText("LOST", this.gamefield.width / 2, this.gamefield.height / 2);
+      } else {
+        this.ctx.fillStyle = "rgb(100,200,100)";
+        this.ctx.font = "bold 120px sans-serif";
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText("WON", this.gamefield.width / 2, this.gamefield.height / 2);
+      }
       return this.isPaused = true;
     };
 

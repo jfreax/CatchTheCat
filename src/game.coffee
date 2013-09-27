@@ -1,7 +1,7 @@
 class Game
   floorColor: "rgb(200,200,200)"
 
-  constructor: () ->
+  constructor: (@type) ->
     @fields = {}
     @cat = {}
 
@@ -41,15 +41,26 @@ class Game
             xoffset = 2*@radius
             
           x = Math.round (xpos + xoffset) / (@radius*2) - 1
-          console.log(x + "x" + y)
+          nextPos = { x: x, y: y }
           
           if !@fields[y*11+x]
-            @makeWall x,y
             ind = new Individual(@fields)
-          
-            @makeCatMove()
+            if @type == 'catcher'
+              @makeWall x,y
+              #@makeWallAi()
+              @makeCatMove()
+            else # cat
+              for n in ind.neighbours(@cat) # fixme: silly and unefficient
+                if n.x == nextPos.x and n.y == nextPos.y
+                  @setCat(nextPos.x, nextPos.y)
+                  @makeWallAi()
+                
+            console.log ind.fitness()
             if ind.fitness() == 99
               @catLost()
+            @isLost()
+            
+            @isPaused = false
       , false)
       
       @isPaused = false
@@ -99,32 +110,48 @@ class Game
     
   makeCatMove: () ->
     i = new Individual( @fields )
-    neighbours = i.neighbours(@cat)
-    best_distance = 99
-    best_ind = neighbours[0]
-    for n in neighbours
-      n.distance = 0
-      distance = i.bfs([n], [n.x+n.y*11])
-      if distance < best_distance
-        best_distance = distance
-        best_ind = n
-    @setCat(best_ind.x, best_ind.y)
-    @isLost()
+    best = i.nextBestMove()
+    @setCat(best.x, best.y)
+
+    @isPaused = false
     
-    #for bla in n
-    #  @makeWall(bla.x, bla.y)
+  makeWallAi: () ->
+    pop = new Population(@fields)
+    best = pop.run()
     
+    for pos,type of best.chromosom
+      if !@fields[pos]
+        if best.chromosom[pos] == 'wall'
+          @makeWall( Math.floor((pos-1) % 11)+1, Math.floor((pos-1) / 11) )
+        
     @isPaused = false
 
   isLost: () ->
     if @cat.x <= 0 or @cat.x > 11 or @cat.y <= 0 or @cat.y > 11
+      @catWon()
+
+  catWon: () ->
+    if @type == 'catcher'
+      @ctx.fillStyle = "rgb(200,100,100)"
       @ctx.font = "bold 120px sans-serif"
       @ctx.textAlign = 'center'
       @ctx.fillText("LOST", @gamefield.width / 2, @gamefield.height / 2)
-      @isPaused = true
-
+    else
+      @ctx.fillStyle = "rgb(100,200,100)"
+      @ctx.font = "bold 120px sans-serif"
+      @ctx.textAlign = 'center'
+      @ctx.fillText("WON", @gamefield.width / 2, @gamefield.height / 2)
+    @isPaused = true
+      
   catLost: () ->
+    if @type == 'cat'
+      @ctx.fillStyle = "rgb(200,100,100)"
       @ctx.font = "bold 110px sans-serif"
       @ctx.textAlign = 'center'
-      @ctx.fillText("CAT LOST", @gamefield.width / 2, @gamefield.height / 2)
-      @isPaused = true
+      @ctx.fillText("LOST", @gamefield.width / 2, @gamefield.height / 2)
+    else
+      @ctx.fillStyle = "rgb(100,200,100)"
+      @ctx.font = "bold 120px sans-serif"
+      @ctx.textAlign = 'center'
+      @ctx.fillText("WON", @gamefield.width / 2, @gamefield.height / 2)
+    @isPaused = true
